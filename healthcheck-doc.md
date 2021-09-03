@@ -20,13 +20,13 @@
 | ------------ | ------ | ------ |
 | **US-South** | UP     | UP     |
 | **EU-DE**    | DOWN   | DOWN   |
-| **Us-south** | DOWN   | DOWN   |
+| **AU-SYD** | DOWN   | DOWN   |
 
 | Region       | **CM** | **GC** |
 | ------------ | ------ | ------ |
 | **US-South** | DOWN   | UP     |
 | **EU-DE**    | DOWN   | UP     |
-| **Us-south** | DOWN   | UP     |
+| **AU-SYD** | DOWN   | UP     |
 
 ## 3 paths for healthchecks
 
