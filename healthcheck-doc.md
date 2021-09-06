@@ -39,7 +39,9 @@
 
 These 3 paths all exist today in GC. All 3 routes point to the same function and return the same result (index.go:73)
 
-Currently the Kubernetes readiness probe points to `/healthcheck`. This should be changed to `/healthcheck/readiness` to be more explicit.
+Currently the Kubernetes readiness probe points to `/healthcheck` , and the load balancer healthchecks point to `/healthcheck/readiness`. These should be switched to be more explicit.
+
+Failing the load balancer healthcheck is the only check we can fail, without resulting in a circular dependency
 
 ## When GC can't reach CM locally
 
@@ -60,18 +62,45 @@ In no situation do we fail `/healthcheck/liveness`- inability to reach CM should
    2. Manually remove that region from rotation ASAP to avoid a CIE
       1. Have to manually add that region back when CM is back up in that region
       2. 15 minute timer for CIE
-   3. Throw alert, or rely on existing pagerduty for CM going down?
-3. Fail `/healthcheck`, and create failover load balancer which targets `/healthcheck/readiness`
-   1. First load balancer will try to route traffic to an endpoint which succeeds  `/healthcheck`
-   2. When the first load balancer fails to find an endpoint which can reach CM, fail over to second load balancer which targets `/healthcheck/readiness`
-   3. `/healthcheck/readiness` doesn't fail, so Pods stay ready, meaning CM can always reach via pod-to-pod
-4. Only fail `/healthcheck` when CM's global endpoint is available
-   1. `/healthcheck/readiness` never fails, so GC can still be reached via pod to pod
-   2. If CM is down in one or more regions, but available globally, GC goes down in the regions where CM is down
-   3. If CM goes totally down, GC goes totally up again
+   3. Choose whether to create new alert, or rely on alert from CM going down?
+3. Fail `/healthcheck`
+   1. Remove a region from rotation when CM can't be reached locally
+   2. doesn't block CM from coming up
+   3. If CM goes down globally, GC goes down globally
+   4. **Option 3.5** - failover load balancer
+      1. when no region passes `/healthcheck`, fail over to second load balancer which targets `/healthcheck/readiness`
+      2. If CM is down- we fail `/healthcheck` but pass `/healthcheck/readiness`, which means second load balancer will ignore CM's state
+      3. If CM is down to one region, and GC in one region gets overwhelmed, GC will fail over to healthy regions
+4. Only fail `/healthcheck` when MC's local endpoint can't be reached but it's global endpoint can be reached
+   1. Highly available
+   2. doesn't block CM from coming up
+   3. If call to CM's global endpoint fails for reasons other than going down (egress failures), we won't respond to failures to reach local endpoint
+   4. If GC's last region starts to go down, traffic won't be redistributed to other endpoints
 5. GC switches to global endpoint
    1. Slow
    2. Compliance issues
+   3. Highly available, doesn't block CM from coming up
+
+## Conclusion
+
+Never fail readiness probes or liveness probes when CM goes down locally, so that you don't interfere with CM's ability to come back up
+
+
+
+Best options are-
+
+1. Don't fail any healthchecks
+   1. Users get 503s in regions where CM is down
+   2. Always up and always globally load balance for vital GC functionality (regions)
+   3. Devs on hook to take GC regions offline when CM has extended regional outage
+2. Fail `/healthcheck` (used by load balancer)
+   1. Remove a GC endpoint from global load balancing when CM is down
+   2. Can fail over to secondary load balancer or origin pool when CM is down in all regions
+3. GC switches to global endpoint
+   1. Highly available and very simple
+   2. **Significant** performance and compliance concerns
+      1. Performance issues can be helped by only using global when local can't be reached
+   3. Always up and always globally load balance for vital GC functionality (regions)
 
 ## Federated Healthcheck Changes
 
