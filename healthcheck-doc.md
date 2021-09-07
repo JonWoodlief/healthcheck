@@ -39,7 +39,7 @@
 
 These 3 paths all exist today in GC. All 3 routes point to the same function and return the same result (index.go:73)
 
-Currently the Kubernetes readiness probe points to `/healthcheck` , and the load balancer healthchecks point to `/healthcheck/readiness`. These should be switched to be more explicit.
+Currently the Kubernetes readiness probe and global load balancers both point to `/healthcheck` , and `/healthcheck/readiness` is unused. Readiness probes should use `/healthcheck/readiness` to be more explicit
 
 Failing the load balancer healthcheck is the only check we can fail, without resulting in a circular dependency
 
